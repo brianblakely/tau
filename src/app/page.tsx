@@ -1,7 +1,5 @@
+import { Prompt } from "@/components/Prompt";
+
 export default function Home() {
-  return (
-    <main>
-      <div>Hello world!</div>
-    </main>
-  );
+  return <Prompt />;
 }
