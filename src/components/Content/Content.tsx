@@ -10,7 +10,7 @@ export const Content = ({
 }) => {
   return (
     <ViewTransition name="content-card" share="content-sweep" default="none">
-      <Card>
+      <Card className="mx-auto max-w-2xl w-full">
         <CardHeader>
           <CardDescription>{description}</CardDescription>
         </CardHeader>

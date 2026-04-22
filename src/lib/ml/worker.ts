@@ -1,8 +1,9 @@
 import type {
+  DataType,
   FeatureExtractionPipeline,
   ZeroShotClassificationPipeline,
 } from "@huggingface/transformers";
-import { pipeline } from "@huggingface/transformers";
+import { ModelRegistry, pipeline } from "@huggingface/transformers";
 import { fieldToDescriptor } from "@/lib/ml/schema";
 import type {
   Aggregation,
@@ -25,7 +26,51 @@ type InitRequest = {
 
 type WorkerRequest = ParseRequest | InitRequest;
 
-const ModelSingleton: {
+// Progressively-enhanced inference engine with dynamic backend and dtype selection.
+type InferenceBackend = "webgpu" | "wasm";
+
+const detectBackend = async (): Promise<InferenceBackend> => {
+  if (!("gpu" in self.navigator)) return "wasm";
+
+  try {
+    const adapter = await self.navigator.gpu.requestAdapter();
+    if (!adapter) return "wasm";
+    return "webgpu";
+  } catch {
+    return "wasm";
+  }
+};
+
+const preferredDtypes = (backend: InferenceBackend): DataType[] => {
+  return backend === "webgpu" ? ["q8", "q4", "fp32"] : ["q8", "q4", "fp32"];
+};
+
+const chooseDtype = async (
+  model: string,
+  backend: InferenceBackend,
+): Promise<DataType> => {
+  try {
+    const available = await ModelRegistry.get_available_dtypes(model);
+    return (
+      preferredDtypes(backend).find((x) => available.includes(x)) ?? "fp32"
+    );
+  } catch {
+    return backend === "webgpu" ? "fp32" : "q8";
+  }
+};
+
+const inferenceRuntimeConfig = async (
+  model: string,
+): Promise<{
+  device: InferenceBackend;
+  dtype: DataType;
+}> => {
+  const device = await detectBackend();
+  const dtype = await chooseDtype(model, device);
+  return { device, dtype };
+};
+
+const InferenceEngine: {
   zeroShotPromise: Promise<ZeroShotClassificationPipeline> | null;
   embedderPromise: Promise<FeatureExtractionPipeline> | null;
   getZeroShot: (
@@ -38,26 +83,32 @@ const ModelSingleton: {
   zeroShotPromise: null,
   embedderPromise: null,
 
-  getZeroShot(progress_callback?: (x: unknown) => void) {
-    if (!ModelSingleton.zeroShotPromise) {
-      ModelSingleton.zeroShotPromise = pipeline(
+  async getZeroShot(progress_callback?: (x: unknown) => void) {
+    const model = "Xenova/nli-deberta-v3-xsmall";
+    const { device, dtype } = await inferenceRuntimeConfig(model);
+
+    if (!InferenceEngine.zeroShotPromise) {
+      InferenceEngine.zeroShotPromise = pipeline(
         "zero-shot-classification",
-        "Xenova/nli-deberta-v3-xsmall",
-        { progress_callback, device: "webgpu" },
+        model,
+        { progress_callback, device, dtype },
       );
     }
-    return ModelSingleton.zeroShotPromise;
+    return InferenceEngine.zeroShotPromise;
   },
 
-  getEmbedder(progress_callback?: (x: unknown) => void) {
-    if (!ModelSingleton.embedderPromise) {
-      ModelSingleton.embedderPromise = pipeline(
-        "feature-extraction",
-        "Xenova/all-MiniLM-L6-v2",
-        { progress_callback, device: "webgpu" },
-      );
+  async getEmbedder(progress_callback?: (x: unknown) => void) {
+    const model = "Xenova/all-MiniLM-L6-v2";
+    const { device, dtype } = await inferenceRuntimeConfig(model);
+
+    if (!InferenceEngine.embedderPromise) {
+      InferenceEngine.embedderPromise = pipeline("feature-extraction", model, {
+        progress_callback,
+        device,
+        dtype,
+      });
     }
-    return ModelSingleton.embedderPromise;
+    return InferenceEngine.embedderPromise;
   },
 };
 
@@ -72,7 +123,7 @@ function dot(a: number[], b: number[]) {
 }
 
 async function embedTexts(texts: string[]) {
-  const embedder = await ModelSingleton.getEmbedder();
+  const embedder = await InferenceEngine.getEmbedder();
   const tensor = await embedder(texts, {
     pooling: "mean",
     normalize: true,
@@ -106,7 +157,7 @@ async function rankFieldsByPrompt(prompt: string, fields: SchemaField[]) {
 async function chooseChartType(
   prompt: string,
 ): Promise<{ label: ChartType; score: number }> {
-  const zeroShot = await ModelSingleton.getZeroShot();
+  const zeroShot = await InferenceEngine.getZeroShot();
   const labels = [
     "bar chart",
     "line chart",
@@ -278,10 +329,10 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
   try {
     if (event.data.type === "init") {
       await Promise.all([
-        ModelSingleton.getZeroShot((x) =>
+        InferenceEngine.getZeroShot((x) =>
           self.postMessage({ type: "progress", payload: x }),
         ),
-        ModelSingleton.getEmbedder((x) =>
+        InferenceEngine.getEmbedder((x) =>
           self.postMessage({ type: "progress", payload: x }),
         ),
       ]);

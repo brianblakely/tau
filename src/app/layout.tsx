@@ -19,8 +19,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("dark", "font-sans", geist.variable)}>
       <body>
-        <main className="min-h-screen px-6 mx-auto w-full max-w-2xl">
-          <Header className="my-8" />
+        <main className="flex flex-col h-screen px-6 pb-6 pt-8 w-full">
+          <Header className="mb-8 mx-auto max-w-2xl w-full" />
           {children}
         </main>
       </body>

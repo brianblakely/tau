@@ -5,8 +5,8 @@ import { useMlOutput } from "@/hooks/useMlOutput";
 import {
   compileDashboardConfig,
   type DashboardConfig,
-  sampleDataSchemaSpec,
 } from "@/lib/ml/compileDashboard";
+import { sampleDataSchemaSpec } from "@/lib/ml/schema";
 import { Content } from "../Content";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
