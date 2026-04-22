@@ -1,0 +1,50 @@
+:root {
+  --content-sweep-duration: 320ms;
+  --content-sweep-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --exit-duration: 140ms;
+  --enter-duration: 180ms;
+}
+
+@keyframes prompt-fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+}
+
+@keyframes output-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+::view-transition-group(.content-sweep) {
+  animation-duration: var(--content-sweep-duration);
+  animation-timing-function: var(--content-sweep-ease);
+}
+
+::view-transition-old(.prompt-fade-out) {
+  animation: prompt-fade-out var(--exit-duration) ease-out both;
+}
+
+::view-transition-new(.prompt-fade-out) {
+  animation: none;
+}
+
+::view-transition-old(.output-fade-in) {
+  animation: none;
+}
+
+::view-transition-new(.output-fade-in) {
+  animation: output-fade-in var(--enter-duration) ease-out both;
+  animation-delay: var(--exit-duration);
+}
