@@ -7,11 +7,11 @@ import { ModelRegistry, pipeline } from "@huggingface/transformers";
 import { fieldToDescriptor } from "@/lib/ml/schema";
 import type {
   Aggregation,
-  ChartType,
   DashboardSpec,
   FilterSpec,
   SchemaContext,
   SchemaField,
+  VisType,
 } from "@/lib/ml/types";
 
 type ParseRequest = {
@@ -156,7 +156,7 @@ async function rankFieldsByPrompt(prompt: string, fields: SchemaField[]) {
 
 async function chooseChartType(
   prompt: string,
-): Promise<{ label: ChartType; score: number }> {
+): Promise<{ label: VisType; score: number }> {
   const zeroShot = await InferenceEngine.getZeroShot();
   const labels = [
     "bar chart",
@@ -174,7 +174,7 @@ async function chooseChartType(
     score: result.scores[0] as number,
   };
 
-  const map: Record<string, ChartType> = {
+  const map: Record<string, VisType> = {
     "bar chart": "bar",
     "line chart": "line",
     "area chart": "area",

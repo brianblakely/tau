@@ -1,3 +1,5 @@
+declare module "*.css" {}
+
 declare module "superstore-arrow" {
   const url: string;
   export default url;

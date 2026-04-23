@@ -14,7 +14,7 @@ export const Content = ({
         <CardHeader>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
-        <CardContent>{children}</CardContent>
+        <CardContent className="flex flex-col">{children}</CardContent>
       </Card>
     </ViewTransition>
   );

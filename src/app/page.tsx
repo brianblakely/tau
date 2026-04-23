@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { Prompt } from "@/components/Prompt";
-import type { DashboardConfig } from "@/lib/ml/compileDashboard";
+import type { DashboardConfig } from "@/lib/datavis/compileDashboard";
 
 export default function Home() {
   const router = useRouter();

@@ -13,13 +13,13 @@ export interface SchemaContext {
 }
 
 export type Aggregation = "sum" | "avg" | "count" | "min" | "max";
-export type ChartType =
+export type VisType =
+  | "table"
   | "bar"
   | "line"
   | "area"
   | "scatter"
   | "pie"
-  | "table"
   | "kpi";
 
 export interface FilterSpec {
@@ -30,7 +30,7 @@ export interface FilterSpec {
 
 export interface ViewSpec {
   kind: "chart" | "table" | "kpi";
-  chartType?: ChartType;
+  chartType?: VisType;
   xField?: string;
   yField?: string;
   aggregation?: Aggregation;

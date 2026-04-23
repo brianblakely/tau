@@ -1,11 +1,11 @@
-import { SendHorizontal } from "lucide-react";
+import { Badge, SendHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useState, ViewTransition } from "react";
 import { useMlOutput } from "@/hooks/useMlOutput";
 import {
   compileDashboardConfig,
   type DashboardConfig,
-} from "@/lib/ml/compileDashboard";
+} from "@/lib/datavis/compileDashboard";
 import { sampleDataSchemaSpec } from "@/lib/ml/schema";
 import { Content } from "../Content";
 import { Button } from "../ui/button";
@@ -29,7 +29,7 @@ export const Prompt = ({
 }: {
   onSubmit: (prompt: string, config: DashboardConfig) => void;
 }) => {
-  const { parse } = useMlOutput();
+  const { parse, loading } = useMlOutput();
 
   const [prompt, setPrompt] = useState("");
   const handlePromptChange = (
@@ -62,7 +62,11 @@ export const Prompt = ({
             aria-label="Send message"
             onClick={handlePromptSubmit}
           >
-            <SendHorizontal className="h-4 w-4" />
+            {loading ? (
+              <Badge className="h-4 w-4 animate-spin" />
+            ) : (
+              <SendHorizontal className="h-4 w-4" />
+            )}
           </Button>
         </div>
       </ViewTransition>

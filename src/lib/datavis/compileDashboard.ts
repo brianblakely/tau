@@ -1,10 +1,12 @@
-import type { DashboardSpec } from "@/lib/ml/types";
+import type { DashboardSpec, VisType } from "@/lib/ml/types";
+
+type Aggregation = "sum" | "min" | "max" | "count" | "avg" | "first" | "last";
 
 export type DashboardConfig = {
-  chartType?: string;
+  visType: VisType;
   query: {
     groupBy: string[];
-    metrics: { field: string; aggregation: string }[];
+    metrics: { field: string; aggregation: Aggregation }[];
     filters: any[];
     sort: { field: string; direction: "asc" | "desc" }[];
     limit?: number;
@@ -13,12 +15,12 @@ export type DashboardConfig = {
   warnings: string[];
 };
 
-export function compileDashboardConfig(spec: DashboardSpec) {
+export function compileDashboardConfig(spec: DashboardSpec): DashboardConfig {
   const view = spec.views[0];
   if (!view) throw new Error("No views in DashboardSpec");
 
   return {
-    chartType: view.chartType,
+    visType: view.chartType ?? "table",
     query: {
       groupBy: view.xField ? [view.xField] : [],
       metrics: view.yField
