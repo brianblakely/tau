@@ -553,7 +553,7 @@ async function chooseChartType(
   };
 
   return {
-    label: map[top.label] ?? "bar",
+    label: map[top.label] ?? "table",
     score: top.score,
   };
 }

@@ -114,7 +114,7 @@ export const sampleDataSchemaSpec: SchemaContext = {
       kind: "string",
       description: "City where the order is to be delivered",
       sampleValues: [
-        "New York City",
+        "Henderson",
         "Los Angeles",
         "San Francisco",
         "Chicago",
