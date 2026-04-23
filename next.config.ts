@@ -6,6 +6,10 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+
+  trailingSlash: true,
+  basePath: "/tau",
+
   reactCompiler: true,
 
   experimental: {

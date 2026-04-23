@@ -33,9 +33,7 @@ export const useSampleData = () => {
 
   useEffect(() => {
     (async () => {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/superstore.lz4.arrow`,
-      );
+      const response = await fetch("/tau/superstore.lz4.arrow");
       const table = await tableFromIPC(response);
 
       setColumnDefs(
