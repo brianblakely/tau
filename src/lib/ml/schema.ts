@@ -1,3 +1,4 @@
+import type { ColumnMeta } from "@/components/DataVis";
 import type { SchemaContext, SchemaField } from "./types";
 
 export function fieldToDescriptor(field: SchemaField): string {
@@ -203,3 +204,11 @@ export const sampleDataSchemaSpec: SchemaContext = {
     },
   ],
 };
+
+export const columnMeta: ColumnMeta = sampleDataSchemaSpec.fields.reduce(
+  (acc, field) => {
+    acc[field.name] = { kind: field.kind === "string" ? "text" : "number" };
+    return acc;
+  },
+  {} as ColumnMeta,
+);

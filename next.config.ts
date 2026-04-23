@@ -1,36 +1,43 @@
 import type { NextConfig } from "next";
+import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
 
-const nextConfig: NextConfig = {
-  /* config options here */
-  output: "export",
-  images: {
-    unoptimized: true,
-  },
+export default function nextConfig(phase: string): NextConfig {
+  const isDev = phase === PHASE_DEVELOPMENT_SERVER;
+  const basePath = isDev ? "" : "/tau";
 
-  trailingSlash: true,
-  basePath: "/tau",
-
-  reactCompiler: true,
-
-  experimental: {
-    viewTransition: true,
-  },
-
-  turbopack: {
-    rules: {
-      "*.arrow": { type: "asset" },
-      "*.parquet": { type: "asset" },
-      "*.csv": { type: "asset" },
+  return {
+    /* config options here */
+    output: "export",
+    images: {
+      unoptimized: true,
     },
-    resolveAlias: {
-      "onnxruntime-node": {
-        browser: "./src/shims/empty.ts",
+
+    basePath,
+
+    env: {
+      NEXT_PUBLIC_BASE_PATH: basePath,
+    },
+
+    reactCompiler: true,
+
+    experimental: {
+      viewTransition: true,
+    },
+
+    turbopack: {
+      rules: {
+        "*.arrow": { type: "asset" },
+        "*.parquet": { type: "asset" },
+        "*.csv": { type: "asset" },
       },
-      sharp: {
-        browser: "./src/shims/empty.ts",
+      resolveAlias: {
+        "onnxruntime-node": {
+          browser: "./src/shims/empty.ts",
+        },
+        sharp: {
+          browser: "./src/shims/empty.ts",
+        },
       },
     },
-  },
-};
-
-export default nextConfig;
+  };
+}

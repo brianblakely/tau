@@ -3,6 +3,7 @@
 import { useEffect, useState, ViewTransition } from "react";
 import { useSampleData } from "@/hooks/useSampleData";
 import type { DashboardConfig } from "@/lib/datavis/compileDashboard";
+import { columnMeta } from "@/lib/ml/schema";
 import { Content } from "../Content";
 import { DataVis } from "../DataVis";
 
@@ -19,6 +20,10 @@ export const Output = () => {
   useEffect(() => {
     const storedPrompt = sessionStorage.getItem("userPrompt");
     const storedDashboardConfig = sessionStorage.getItem("dashboardConfig");
+
+    console.log(`Prompt: ${storedPrompt}`);
+    console.log(`Dashboard Config: ${storedDashboardConfig}`);
+
     if (storedPrompt) {
       setPrompt(storedPrompt);
     }
@@ -30,16 +35,13 @@ export const Output = () => {
   return (
     <Content description={<OutputDescription prompt={prompt} />}>
       <ViewTransition enter="output-fade-in" default="none">
-        {/* <code className="p-4 text-sm leading-6">
-          {JSON.stringify(dashboardConfig)}
-        </code> */}
-        {dashboardConfig && (
-          <div className="h-[300px]">
+        {dashboardConfig && rowData.length && (
+          <div className="flex h-[300px]">
             <DataVis
               rowData={rowData}
               columnDefs={columnDefs}
               spec={dashboardConfig}
-              columnMeta={{}}
+              columnMeta={columnMeta}
             />
           </div>
         )}

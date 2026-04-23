@@ -14,6 +14,8 @@ import type {
   VisType,
 } from "@/lib/ml/types";
 
+type FilterValue = FilterSpec["value"];
+
 type ParseRequest = {
   type: "parse";
   prompt: string;
@@ -26,8 +28,47 @@ type InitRequest = {
 
 type WorkerRequest = ParseRequest | InitRequest;
 
-// Progressively-enhanced inference engine with dynamic backend and dtype selection.
 type InferenceBackend = "webgpu" | "wasm";
+type FieldRole = "metric" | "dimension" | "filter";
+
+type RankedField = {
+  field: SchemaField;
+  score: number;
+  semanticScore: number;
+  nameScore: number;
+  sampleScore: number;
+  priorScore: number;
+  matchedSample?: FilterValue;
+};
+
+const STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "as",
+  "at",
+  "by",
+  "for",
+  "from",
+  "in",
+  "into",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "with",
+  "show",
+  "me",
+  "chart",
+  "plot",
+  "graph",
+  "table",
+  "dashboard",
+  "please",
+]);
+
+const embeddingCache = new Map<string, number[]>();
 
 const detectBackend = async (): Promise<InferenceBackend> => {
   if (!("gpu" in self.navigator)) return "wasm";
@@ -113,7 +154,15 @@ const InferenceEngine: {
 };
 
 function normalizeText(s: string) {
-  return s.toLowerCase().replace(/\s+/g, " ").trim();
+  return s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function dot(a: number[], b: number[]) {
@@ -122,36 +171,355 @@ function dot(a: number[], b: number[]) {
   return total;
 }
 
-async function embedTexts(texts: string[]) {
-  const embedder = await InferenceEngine.getEmbedder();
-  const tensor = await embedder(texts, {
-    pooling: "mean",
-    normalize: true,
-  });
-
-  const dims = tensor.dims as number[];
-  const width = dims[dims.length - 1];
-  const count = dims[0];
-  const data = Array.from(tensor.data as Float32Array);
-
-  return Array.from({ length: count }, (_, i) =>
-    data.slice(i * width, (i + 1) * width),
-  );
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-async function rankFieldsByPrompt(prompt: string, fields: SchemaField[]) {
+function tokenize(s: string) {
+  return normalizeText(s).split(" ").filter(Boolean);
+}
+
+function hasWholePhrase(haystack: string, needle: string) {
+  if (!needle) return false;
+  return new RegExp(`(^|\\s)${escapeRegExp(needle)}($|\\s)`).test(haystack);
+}
+
+function uniqueByNormalized(values: FilterValue[]): FilterValue[] {
+  const out: FilterValue[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const key = normalizeText(String(value));
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+
+  return out;
+}
+
+function representativeSampleValues(
+  field: SchemaField,
+  max = 12,
+): FilterValue[] {
+  return uniqueByNormalized(field.sampleValues ?? []).slice(0, max);
+}
+
+function rolePrior(field: SchemaField, role: FieldRole) {
+  if (role === "metric") return field.kind === "number" ? 0.15 : -0.2;
+  if (role === "dimension")
+    return field.kind === "string" || field.kind === "date" ? 0.12 : -0.15;
+  if (role === "filter")
+    return field.kind === "string" || field.kind === "date" ? 0.08 : -0.1;
+  return 0;
+}
+
+function fieldNameMentionScore(prompt: string, field: SchemaField) {
+  const p = normalizeText(prompt);
+  const names = Array.from(
+    new Set([normalizeText(field.name), normalizeText(field.name)]),
+  ).filter(Boolean);
+
+  let best = 0;
+  for (const name of names) {
+    if (hasWholePhrase(p, name)) {
+      best = Math.max(best, name.includes(" ") ? 0.35 : 0.2);
+    }
+  }
+
+  return best;
+}
+
+function exactSampleMatch(
+  prompt: string,
+  field: SchemaField,
+): FilterValue | undefined {
+  const p = normalizeText(prompt);
+  for (const rawValue of representativeSampleValues(field, 20)) {
+    const value = normalizeText(String(rawValue));
+    if (!value) continue;
+    if (hasWholePhrase(p, value)) return rawValue;
+  }
+  return undefined;
+}
+
+function buildFieldSemanticText(field: SchemaField, role: FieldRole) {
+  const samples = representativeSampleValues(field, 8)
+    .map((x) => String(x))
+    .join(", ");
+
+  return [
+    fieldToDescriptor(field),
+    `role: ${role}`,
+    samples ? `common values: ${samples}` : "",
+  ]
+    .filter(Boolean)
+    .join(". ");
+}
+
+async function embedTexts(texts: string[]) {
+  const keys = texts.map(normalizeText);
+  const missing = Array.from(
+    new Set(keys.filter((key) => key && !embeddingCache.has(key))),
+  );
+
+  if (missing.length) {
+    const embedder = await InferenceEngine.getEmbedder();
+    const tensor = await embedder(missing, {
+      pooling: "mean",
+      normalize: true,
+    });
+
+    const dims = tensor.dims as number[];
+    const width = dims[dims.length - 1];
+    const data = Array.from(tensor.data as Float32Array);
+
+    for (let i = 0; i < missing.length; i++) {
+      embeddingCache.set(missing[i], data.slice(i * width, (i + 1) * width));
+    }
+  }
+
+  return keys.map((key) => {
+    const vec = embeddingCache.get(key);
+    if (!vec) throw new Error(`Missing embedding for "${key}"`);
+    return vec;
+  });
+}
+
+function extractPromptPhrases(prompt: string, maxN = 4, maxPhrases = 24) {
+  const tokens = tokenize(prompt).filter(
+    (t) => t.length > 1 && !STOPWORDS.has(t),
+  );
+
+  const phrases: string[] = [];
+  const full = normalizeText(prompt);
+  if (full) phrases.push(full);
+
+  for (let n = Math.min(maxN, tokens.length); n >= 1; n--) {
+    for (let i = 0; i <= tokens.length - n; i++) {
+      const phrase = tokens.slice(i, i + n).join(" ");
+      if (!phrase) continue;
+      phrases.push(phrase);
+      if (phrases.length >= maxPhrases) {
+        return Array.from(new Set(phrases));
+      }
+    }
+  }
+
+  return Array.from(new Set(phrases));
+}
+
+async function rankFieldsByPrompt(
+  prompt: string,
+  fields: SchemaField[],
+  role: FieldRole,
+): Promise<RankedField[]> {
   if (!fields.length) return [];
 
-  const descriptors = fields.map(fieldToDescriptor);
-  const vectors = await embedTexts([prompt, ...descriptors]);
+  const semanticTexts = fields.map((field) =>
+    buildFieldSemanticText(field, role),
+  );
+  const vectors = await embedTexts([prompt, ...semanticTexts]);
   const [promptVec, ...fieldVecs] = vectors;
 
   return fields
-    .map((field, i) => ({
-      field,
-      score: dot(promptVec, fieldVecs[i]),
-    }))
+    .map((field, i) => {
+      const semanticScore = dot(promptVec, fieldVecs[i]);
+      const nameScore = fieldNameMentionScore(prompt, field);
+      const matchedSample = exactSampleMatch(prompt, field);
+      const sampleScore =
+        matchedSample === undefined ? 0 : role === "filter" ? 0.5 : 0.22;
+      const priorScore = rolePrior(field, role);
+
+      return {
+        field,
+        score: semanticScore + nameScore + sampleScore + priorScore,
+        semanticScore,
+        nameScore,
+        sampleScore,
+        priorScore,
+        matchedSample,
+      };
+    })
     .sort((a, b) => b.score - a.score);
+}
+
+async function inferSemanticSampleMatch(
+  prompt: string,
+  field: SchemaField,
+): Promise<{ rawValue: FilterValue; score: number } | null> {
+  const exact = exactSampleMatch(prompt, field);
+  if (exact !== undefined) return { rawValue: exact, score: 1.1 };
+
+  const values = representativeSampleValues(field, 20);
+  if (!values.length) return null;
+
+  const phrases = extractPromptPhrases(prompt);
+  const valueTexts = values.map((x) => String(x));
+  const vectors = await embedTexts([...phrases, ...valueTexts]);
+
+  const phraseVecs = vectors.slice(0, phrases.length);
+  const valueVecs = vectors.slice(phrases.length);
+
+  let bestIndex = -1;
+  let bestScore = -1;
+
+  for (let i = 0; i < values.length; i++) {
+    const valueText = normalizeText(String(values[i]));
+    if (!valueText) continue;
+
+    for (let j = 0; j < phrases.length; j++) {
+      const phrase = phrases[j];
+      if (phrase.length < 3) continue;
+
+      let score = dot(phraseVecs[j], valueVecs[i]);
+
+      if (valueText.includes(phrase) || phrase.includes(valueText)) {
+        score += 0.08;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+  }
+
+  if (bestIndex === -1 || bestScore < 0.62) return null;
+
+  return {
+    rawValue: values[bestIndex],
+    score: bestScore,
+  };
+}
+
+async function inferFilters(
+  prompt: string,
+  schema: SchemaContext,
+): Promise<FilterSpec[]> {
+  const filterable = schema.fields.filter(
+    (f) => f.kind === "string" || f.kind === "date",
+  );
+
+  const ranked = await rankFieldsByPrompt(prompt, filterable, "filter");
+  const topFields = ranked.slice(0, 8);
+
+  const matches = await Promise.all(
+    topFields.map(async (rankedField) => {
+      const semanticMatch =
+        rankedField.matchedSample !== undefined
+          ? { rawValue: rankedField.matchedSample, score: 1.1 }
+          : await inferSemanticSampleMatch(prompt, rankedField.field);
+
+      if (!semanticMatch) return null;
+
+      const totalScore = rankedField.score + semanticMatch.score;
+      if (totalScore < 1.15) return null;
+
+      return {
+        score: totalScore,
+        filter: {
+          field: rankedField.field.name,
+          op: "=" as const,
+          value: semanticMatch.rawValue,
+        },
+      };
+    }),
+  );
+
+  return dedupeFilters(
+    matches
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.filter),
+  ).slice(0, 4);
+}
+
+function dedupeFilters(filters: FilterSpec[]) {
+  const seen = new Set<string>();
+  return filters.filter((f) => {
+    const key = `${f.field}:${f.op}:${JSON.stringify(f.value)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function inferAggregationHeuristic(prompt: string): Aggregation | undefined {
+  const p = normalizeText(prompt);
+  if (/\baverage\b|\bavg\b|\bmean\b/.test(p)) return "avg";
+  if (/\bcount\b|\bhow many\b|\bnumber of\b/.test(p)) return "count";
+  if (/\bminimum\b|\bmin\b|\blowest\b/.test(p)) return "min";
+  if (/\bmaximum\b|\bmax\b|\bhighest\b/.test(p)) return "max";
+  if (/\bsum\b|\btotal\b/.test(p)) return "sum";
+  return undefined;
+}
+
+async function chooseAggregation(
+  prompt: string,
+  metric?: string,
+): Promise<Aggregation> {
+  const heuristic = inferAggregationHeuristic(prompt);
+  if (heuristic) return heuristic;
+
+  const zeroShot = await InferenceEngine.getZeroShot();
+  const result = await zeroShot(
+    `Pick the best aggregation for this analytics request.
+Request: ${prompt}
+Metric: ${metric ?? "unknown"}`,
+    ["sum", "average", "count", "minimum", "maximum"],
+  );
+
+  const top = result.labels[0] as string;
+  const map: Record<string, Aggregation> = {
+    sum: "sum",
+    average: "avg",
+    count: "count",
+    minimum: "min",
+    maximum: "max",
+  };
+
+  return map[top] ?? "sum";
+}
+
+function inferLimit(prompt: string): number | undefined {
+  const p = normalizeText(prompt);
+  const topMatch = p.match(/\btop\s+(\d+)\b/);
+  if (topMatch) return Number(topMatch[1]);
+
+  const bottomMatch = p.match(/\bbottom\s+(\d+)\b/);
+  if (bottomMatch) return Number(bottomMatch[1]);
+
+  return undefined;
+}
+
+function inferSortHeuristic(prompt: string) {
+  const p = normalizeText(prompt);
+
+  if (/\bdescending\b|\bdesc\b|\bhighest\b|\blargest\b|\btop\b/.test(p)) {
+    return { direction: "desc" as const };
+  }
+  if (/\bascending\b|\basc\b|\blowest\b|\bsmallest\b|\bbottom\b/.test(p)) {
+    return { direction: "asc" as const };
+  }
+  return undefined;
+}
+
+async function chooseSort(prompt: string) {
+  const heuristic = inferSortHeuristic(prompt);
+  if (heuristic) return heuristic;
+
+  const zeroShot = await InferenceEngine.getZeroShot();
+  const result = await zeroShot(
+    `Should the result be sorted ascending, descending, or left unspecified?
+Request: ${prompt}`,
+    ["descending", "ascending", "unspecified"],
+  );
+
+  const top = result.labels[0] as string;
+  if (top === "descending") return { direction: "desc" as const };
+  if (top === "ascending") return { direction: "asc" as const };
+  return undefined;
 }
 
 async function chooseChartType(
@@ -190,68 +558,12 @@ async function chooseChartType(
   };
 }
 
-function inferAggregation(prompt: string): Aggregation {
+function promptExplicitlyGroupsByField(prompt: string, field: SchemaField) {
   const p = normalizeText(prompt);
-  if (/\baverage\b|\bavg\b|\bmean\b/.test(p)) return "avg";
-  if (/\bcount\b|\bhow many\b|\bnumber of\b/.test(p)) return "count";
-  if (/\bminimum\b|\bmin\b|\blowest\b/.test(p)) return "min";
-  if (/\bmaximum\b|\bmax\b|\bhighest\b/.test(p)) return "max";
-  return "sum";
-}
-
-function inferLimit(prompt: string): number | undefined {
-  const p = normalizeText(prompt);
-  const topMatch = p.match(/\btop\s+(\d+)\b/);
-  if (topMatch) return Number(topMatch[1]);
-
-  const bottomMatch = p.match(/\bbottom\s+(\d+)\b/);
-  if (bottomMatch) return Number(bottomMatch[1]);
-
-  return undefined;
-}
-
-function inferSort(prompt: string) {
-  const p = normalizeText(prompt);
-
-  if (/\bdescending\b|\bdesc\b|\bhighest\b|\blargest\b|\btop\b/.test(p)) {
-    return { direction: "desc" as const };
-  }
-  if (/\bascending\b|\basc\b|\blowest\b|\bsmallest\b|\bbottom\b/.test(p)) {
-    return { direction: "asc" as const };
-  }
-  return undefined;
-}
-
-function inferFilters(prompt: string, schema: SchemaContext): FilterSpec[] {
-  const p = normalizeText(prompt);
-  const filters: FilterSpec[] = [];
-
-  for (const field of schema.fields) {
-    for (const rawValue of field.sampleValues ?? []) {
-      const value = normalizeText(String(rawValue));
-      if (!value) continue;
-
-      if (p.includes(value)) {
-        filters.push({
-          field: field.name,
-          op: "=",
-          value: rawValue,
-        });
-      }
-    }
-  }
-
-  return dedupeFilters(filters);
-}
-
-function dedupeFilters(filters: FilterSpec[]) {
-  const seen = new Set<string>();
-  return filters.filter((f) => {
-    const key = `${f.field}:${f.op}:${JSON.stringify(f.value)}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const fieldName = normalizeText(field.name);
+  return new RegExp(
+    `\\b(by|per|across|over|grouped by|broken down by)\\s+${escapeRegExp(fieldName)}\\b`,
+  ).test(p);
 }
 
 function chooseTitle(prompt: string) {
@@ -267,18 +579,25 @@ async function parsePrompt(
     (f) => f.kind === "string" || f.kind === "date",
   );
 
-  const [chartChoice, metricRanks, dimensionRanks] = await Promise.all([
-    chooseChartType(prompt),
-    rankFieldsByPrompt(prompt, numeric),
-    rankFieldsByPrompt(prompt, groupable),
-  ]);
+  const [chartChoice, metricRanks, dimensionRanks, filters, sort] =
+    await Promise.all([
+      chooseChartType(prompt),
+      rankFieldsByPrompt(prompt, numeric, "metric"),
+      rankFieldsByPrompt(prompt, groupable, "dimension"),
+      inferFilters(prompt, schema),
+      chooseSort(prompt),
+    ]);
 
   const metric = metricRanks[0]?.field?.name;
-  const dimension = dimensionRanks[0]?.field?.name;
-  const aggregation = inferAggregation(prompt);
-  const filters = inferFilters(prompt, schema);
-  const limit = inferLimit(prompt);
-  const sort = inferSort(prompt);
+  const aggregation = await chooseAggregation(prompt, metric);
+
+  const filteredFields = new Set(filters.map((f) => f.field));
+  const dimension = dimensionRanks.find(({ field }) => {
+    return (
+      !filteredFields.has(field.name) ||
+      promptExplicitlyGroupsByField(prompt, field)
+    );
+  })?.field.name;
 
   const warnings: string[] = [];
 
@@ -292,14 +611,16 @@ async function parsePrompt(
   const sortField =
     chartChoice.label === "kpi" ? metric : (metric ?? dimension);
 
+  const confidenceParts = [
+    chartChoice.score ?? 0,
+    metricRanks[0]?.score ?? 0,
+    dimensionRanks[0]?.score ?? 0,
+    filters.length ? 0.85 : 0.55,
+  ];
+
   return {
-    confidence: Math.min(
-      1,
-      ((chartChoice.score ?? 0) +
-        (metricRanks[0]?.score ?? 0) +
-        (dimensionRanks[0]?.score ?? 0)) /
-        3,
-    ),
+    confidence:
+      confidenceParts.reduce((sum, x) => sum + x, 0) / confidenceParts.length,
     warnings,
     views: [
       {
@@ -314,7 +635,7 @@ async function parsePrompt(
         yField: metric,
         aggregation,
         filters,
-        limit,
+        limit: inferLimit(prompt),
         sort:
           sort && sortField
             ? { field: sortField, direction: sort.direction }

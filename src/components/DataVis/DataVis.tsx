@@ -36,7 +36,7 @@ type FilterOp =
   | "contains"
   | "startsWith";
 
-type ColumnMeta = Record<
+export type ColumnMeta = Record<
   string,
   {
     kind: "text" | "number";
@@ -240,6 +240,7 @@ export function DataVis({
   const defaultColDef = useMemo<ColDef<Row>>(
     () => ({
       sortable: true,
+      filter: true,
       enableRowGroup: true,
       enableValue: true,
       resizable: false,
