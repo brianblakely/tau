@@ -82,9 +82,7 @@ const detectBackend = async (): Promise<InferenceBackend> => {
   }
 };
 
-const preferredDtypes = (backend: InferenceBackend): DataType[] => {
-  return backend === "webgpu" ? ["q8", "q4", "fp32"] : ["q8", "q4", "fp32"];
-};
+const preferredDtypes: DataType[] = ["q8", "q4", "fp32"];
 
 const chooseDtype = async (
   model: string,
@@ -92,9 +90,7 @@ const chooseDtype = async (
 ): Promise<DataType> => {
   try {
     const available = await ModelRegistry.get_available_dtypes(model);
-    return (
-      preferredDtypes(backend).find((x) => available.includes(x)) ?? "fp32"
-    );
+    return preferredDtypes.find((x) => available.includes(x)) ?? "fp32";
   } catch {
     return backend === "webgpu" ? "fp32" : "q8";
   }
