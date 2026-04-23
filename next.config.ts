@@ -14,7 +14,6 @@ const nextConfig: NextConfig = {
 
   turbopack: {
     rules: {
-      "*.lz4.arrow": { type: "asset" },
       "*.arrow": { type: "asset" },
       "*.parquet": { type: "asset" },
       "*.csv": { type: "asset" },

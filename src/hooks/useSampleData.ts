@@ -2,7 +2,6 @@ import type { ColDef } from "ag-grid-community";
 import type { Field } from "apache-arrow";
 import { DataType, tableFromIPC } from "apache-arrow";
 import { useEffect, useState } from "react";
-import data from "superstore-arrow";
 import type { Row } from "@/lib/datavis/types";
 
 type AgGridCellDataType = ColDef<Row>["cellDataType"];
@@ -34,7 +33,9 @@ export const useSampleData = () => {
 
   useEffect(() => {
     (async () => {
-      const response = await fetch(data);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/superstore.lz4.arrow`,
+      );
       const table = await tableFromIPC(response);
 
       setColumnDefs(
