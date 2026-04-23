@@ -153,7 +153,7 @@ function normalizeText(s: string) {
   return s
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\p{Diacritic}/gu, "")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/[_-]+/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
