@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { DashboardSpec, SchemaContext } from "../lib/ml/types";
+import type { DashboardSpec, SchemaField } from "../lib/ml/types";
 
 export function useMlOutput() {
   const workerRef = useRef<Worker | null>(null);
@@ -31,7 +31,7 @@ export function useMlOutput() {
 
   async function parse(
     prompt: string,
-    schema: SchemaContext,
+    schema: SchemaField[],
   ): Promise<DashboardSpec> {
     const worker = workerRef.current;
     if (!worker) throw new Error("Worker not initialized");

@@ -1,4 +1,3 @@
-import type { ColumnMeta } from "@/components/DataVis";
 import type { SchemaField } from "./types";
 
 export function fieldToDescriptor(field: SchemaField): string {
