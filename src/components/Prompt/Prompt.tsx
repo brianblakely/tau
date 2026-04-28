@@ -2,11 +2,11 @@ import { Badge, SendHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useState, ViewTransition } from "react";
 import { useMlOutput } from "@/hooks/useMlOutput";
+import { useSampleData } from "@/hooks/useSampleData";
 import {
   compileDashboardConfig,
   type DashboardConfig,
 } from "@/lib/datavis/compileDashboard";
-import { sampleDataSchemaSpec } from "@/lib/ml/schema";
 import { Content } from "../Content";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
@@ -30,6 +30,7 @@ export const Prompt = ({
   onSubmit: (prompt: string, config: DashboardConfig) => void;
 }) => {
   const { parse, loading } = useMlOutput();
+  const { schemaSpec } = useSampleData();
 
   const [prompt, setPrompt] = useState("");
   const handlePromptChange = (
@@ -40,7 +41,7 @@ export const Prompt = ({
   const handlePromptSubmit = async () => {
     if (!prompt) return;
 
-    const spec = await parse(prompt, sampleDataSchemaSpec);
+    const spec = await parse(prompt, schemaSpec);
     const dashboardConfig = compileDashboardConfig(spec);
 
     onSubmit(prompt, dashboardConfig);

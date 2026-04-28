@@ -3,6 +3,10 @@ import type { Field } from "apache-arrow";
 import { DataType, tableFromIPC } from "apache-arrow";
 import { useEffect, useState } from "react";
 import type { Row } from "@/lib/datavis/types";
+import {
+  arrowColumnDescriptors,
+  type DatasetColumnDescriptor,
+} from "@/lib/ml/descriptors";
 
 type AgGridCellDataType = ColDef<Row>["cellDataType"];
 
@@ -30,6 +34,7 @@ const arrowFieldToAgGridType = (field: Field): AgGridCellDataType => {
 export const useSampleData = () => {
   const [rowData, setRowData] = useState<Row[]>([]);
   const [columnDefs, setColumnDefs] = useState<ColDef<Row>[]>([]);
+  const [schemaSpec, setSchemaSpec] = useState<DatasetColumnDescriptor[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -38,11 +43,16 @@ export const useSampleData = () => {
       );
       const table = await tableFromIPC(response);
 
+      const descriptors = await arrowColumnDescriptors(table);
+
+      setSchemaSpec(descriptors);
       setColumnDefs(
-        table.schema.fields.map((field) => ({
-          field: field.name,
-          headerName: field.name,
-          cellDataType: arrowFieldToAgGridType(field),
+        descriptors.map((descriptor) => ({
+          field: descriptor.name,
+          headerName: descriptor.name,
+          cellDataType: descriptor.name.toLowerCase().includes("postal code")
+            ? "text"
+            : descriptor.kind,
         })),
       );
       setRowData(
@@ -55,5 +65,5 @@ export const useSampleData = () => {
     })();
   }, []);
 
-  return { rowData, columnDefs };
+  return { rowData, columnDefs, schemaSpec };
 };

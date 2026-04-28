@@ -3,13 +3,7 @@ export type FieldKind = "string" | "number" | "date" | "boolean";
 export interface SchemaField {
   name: string;
   kind: FieldKind;
-  description?: string;
   sampleValues?: string[];
-}
-
-export interface SchemaContext {
-  datasetName: string;
-  fields: SchemaField[];
 }
 
 export type Aggregation = "sum" | "avg" | "count" | "min" | "max";

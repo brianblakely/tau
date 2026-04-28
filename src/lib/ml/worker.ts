@@ -9,7 +9,6 @@ import type {
   Aggregation,
   DashboardSpec,
   FilterSpec,
-  SchemaContext,
   SchemaField,
   VisType,
 } from "@/lib/ml/types";
@@ -19,7 +18,7 @@ type FilterValue = FilterSpec["value"];
 type ParseRequest = {
   type: "parse";
   prompt: string;
-  schema: SchemaContext;
+  schema: SchemaField[];
 };
 
 type InitRequest = {
@@ -391,9 +390,9 @@ async function inferSemanticSampleMatch(
 
 async function inferFilters(
   prompt: string,
-  schema: SchemaContext,
+  schema: SchemaField[],
 ): Promise<FilterSpec[]> {
-  const filterable = schema.fields.filter(
+  const filterable = schema.filter(
     (f) => f.kind === "string" || f.kind === "date",
   );
 
@@ -568,10 +567,10 @@ function chooseTitle(prompt: string) {
 
 async function parsePrompt(
   prompt: string,
-  schema: SchemaContext,
+  schema: SchemaField[],
 ): Promise<DashboardSpec> {
-  const numeric = schema.fields.filter((f) => f.kind === "number");
-  const groupable = schema.fields.filter(
+  const numeric = schema.filter((f) => f.kind === "number");
+  const groupable = schema.filter(
     (f) => f.kind === "string" || f.kind === "date",
   );
 

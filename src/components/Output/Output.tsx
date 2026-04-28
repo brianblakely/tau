@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, ViewTransition } from "react";
+import { useEffect, useMemo, useState, ViewTransition } from "react";
 import { useSampleData } from "@/hooks/useSampleData";
 import type { DashboardConfig } from "@/lib/datavis/compileDashboard";
-import { columnMeta } from "@/lib/ml/schema";
 import { Content } from "../Content";
-import { DataVis } from "../DataVis";
+import { type ColumnMeta, DataVis } from "../DataVis";
 
 const OutputDescription = ({ prompt }: { prompt: string }) => (
   <>{`"${prompt}"`}</>
@@ -16,6 +15,18 @@ export const Output = () => {
   const [dashboardConfig, setDashboardConfig] = useState<DashboardConfig>();
 
   const { rowData, columnDefs } = useSampleData();
+
+  const columnMeta: ColumnMeta = useMemo(() => {
+    return columnDefs.reduce((acc, colDef) => {
+      const colName = colDef.field ?? colDef.headerName;
+      if (colName !== undefined) {
+        acc[colName] = {
+          kind: colDef.cellDataType === "text" ? "text" : "number",
+        };
+      }
+      return acc;
+    }, {} as ColumnMeta);
+  }, [columnDefs.reduce]);
 
   useEffect(() => {
     const storedPrompt = sessionStorage.getItem("userPrompt");
