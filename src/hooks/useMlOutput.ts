@@ -9,9 +9,12 @@ export function useMlOutput() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const worker = new Worker(new URL("../lib/ml/worker.ts", import.meta.url), {
-      type: "module",
-    });
+    const worker = new Worker(
+      new URL("../lib/ml/nlp/worker.ts", import.meta.url),
+      {
+        type: "module",
+      },
+    );
 
     workerRef.current = worker;
     worker.postMessage({ type: "init" });
