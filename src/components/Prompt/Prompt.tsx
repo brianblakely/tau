@@ -1,3 +1,4 @@
+import type { ColDef } from "ag-grid-community";
 import { Badge, SendHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useState, ViewTransition } from "react";
@@ -7,6 +8,7 @@ import {
   compileDashboardConfig,
   type DashboardConfig,
 } from "@/lib/datavis/compileDashboard";
+import type { Row } from "@/lib/datavis/types";
 import { Content } from "../Content";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
@@ -27,10 +29,15 @@ const PromptDescription = () => (
 export const Prompt = ({
   onSubmit,
 }: {
-  onSubmit: (prompt: string, config: DashboardConfig) => void;
+  onSubmit: (
+    prompt: string,
+    config: DashboardConfig,
+    rowData: Row[],
+    columnDefs: ColDef<Row>[],
+  ) => void;
 }) => {
   const { parse, loading } = useMlOutput();
-  const { schemaSpec } = useSampleData();
+  const { rowData, columnDefs, schemaSpec } = useSampleData();
 
   const [prompt, setPrompt] = useState("");
   const handlePromptChange = (
@@ -44,7 +51,7 @@ export const Prompt = ({
     const spec = await parse(prompt, schemaSpec);
     const dashboardConfig = compileDashboardConfig(spec);
 
-    onSubmit(prompt, dashboardConfig);
+    onSubmit(prompt, dashboardConfig, rowData, columnDefs);
   };
 
   return (

@@ -1,8 +1,9 @@
 "use client";
 
+import type { ColDef } from "ag-grid-community";
 import { useEffect, useMemo, useState, ViewTransition } from "react";
-import { useSampleData } from "@/hooks/useSampleData";
 import type { DashboardConfig } from "@/lib/datavis/compileDashboard";
+import type { Row } from "@/lib/datavis/types";
 import { Content } from "../Content";
 import { type ColumnMeta, DataVis } from "../DataVis";
 
@@ -13,8 +14,8 @@ const OutputDescription = ({ prompt }: { prompt: string }) => (
 export const Output = () => {
   const [prompt, setPrompt] = useState("");
   const [dashboardConfig, setDashboardConfig] = useState<DashboardConfig>();
-
-  const { rowData, columnDefs } = useSampleData();
+  const [rowData, setRowData] = useState<Row[]>([]);
+  const [columnDefs, setColumnDefs] = useState<ColDef<Row>[]>([]);
 
   const columnMeta: ColumnMeta = useMemo(() => {
     return columnDefs.reduce((acc, colDef) => {
@@ -31,6 +32,8 @@ export const Output = () => {
   useEffect(() => {
     const storedPrompt = sessionStorage.getItem("userPrompt");
     const storedDashboardConfig = sessionStorage.getItem("dashboardConfig");
+    const storedrowData = sessionStorage.getItem("rowData");
+    const storedcolumnDefs = sessionStorage.getItem("columnDefs");
 
     console.log(`Prompt: ${storedPrompt}`);
     console.log(`Dashboard Config: ${storedDashboardConfig}`);
@@ -40,6 +43,12 @@ export const Output = () => {
     }
     if (storedDashboardConfig) {
       setDashboardConfig(JSON.parse(storedDashboardConfig));
+    }
+    if (storedrowData) {
+      setRowData(JSON.parse(storedrowData));
+    }
+    if (storedcolumnDefs) {
+      setColumnDefs(JSON.parse(storedcolumnDefs));
     }
   }, []);
 

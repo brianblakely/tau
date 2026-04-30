@@ -18,7 +18,7 @@ export type VisType =
 
 export interface FilterSpec {
   field: string;
-  op: "=" | "!=" | ">" | "<" | ">=" | "<=" | "contains" | "in";
+  op: "=" | "!=" | ">" | "<" | ">=" | "<=" | "contains" | "in" | "not in";
   value: string | number | string[];
 }
 
