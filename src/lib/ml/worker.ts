@@ -154,6 +154,7 @@ function normalizeText(s: string) {
     .normalize("NFKD")
     .replace(/\p{Diacritic}/gu, "")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[’']/g, "")
     .replace(/[_-]+/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
@@ -230,7 +231,7 @@ function exactSampleMatch(
   field: SchemaField,
 ): FilterValue | undefined {
   const p = normalizeText(prompt);
-  for (const rawValue of representativeSampleValues(field, 20)) {
+  for (const rawValue of representativeSampleValues(field, Infinity)) {
     const value = normalizeText(String(rawValue));
     if (!value) continue;
     if (hasWholePhrase(p, value)) return rawValue;
@@ -396,11 +397,26 @@ async function inferFilters(
     (f) => f.kind === "string" || f.kind === "date",
   );
 
+  const explicitGroupByFieldNames = new Set(
+    filterable
+      .filter((field) => promptExplicitlyGroupsByField(prompt, field))
+      .map((field) => field.name),
+  );
+
   const ranked = await rankFieldsByPrompt(prompt, filterable, "filter");
   const topFields = ranked.slice(0, 8);
 
   const matches = await Promise.all(
     topFields.map(async (rankedField) => {
+      const exactMatch = rankedField.matchedSample;
+
+      if (
+        exactMatch !== undefined &&
+        explicitGroupByFieldNames.has(rankedField.field.name)
+      ) {
+        return null;
+      }
+
       const semanticMatch =
         rankedField.matchedSample !== undefined
           ? { rawValue: rankedField.matchedSample, score: 1.1 }
