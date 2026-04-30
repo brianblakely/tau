@@ -201,6 +201,73 @@ function representativeSampleValues(
   return uniqueByNormalized(field.sampleValues ?? []).slice(0, max);
 }
 
+type ExactFilterPredicate = {
+  op: FilterSpec["op"];
+  value: FilterValue;
+  score: number;
+};
+
+type FilterOperatorRule = {
+  op: FilterSpec["op"];
+  scoreBoost: number;
+  before?: RegExp[];
+  after?: RegExp[];
+};
+
+const FILTER_OPERATOR_RULES: FilterOperatorRule[] = [
+  {
+    op: "!=",
+    scoreBoost: 0.25,
+    before: [
+      /\bbut\s+not\s+$/,
+      /\bnot\s+$/,
+      /\bbut\s+$/,
+      /\bexcept\s+$/,
+      /\bexcluding\s+$/,
+      /\bexclude\s+$/,
+      /\bwithout\s+$/,
+      /\bbesides\s+$/,
+      /\bother\s+than\s+$/,
+      /\bis\s+not\s+$/,
+      /\bare\s+not\s+$/,
+      /\bnot\s+equal\s+to\s+$/,
+      /\bnot\s+equals\s+$/,
+      /\bisnt\s+$/,
+      /\barent\s+$/,
+      /\bdont\s+(?:include|show|use)\s+$/,
+      /\bdo\s+not\s+(?:include|show|use)\s+$/,
+      /\bdoesnt\s+(?:include|show|use)\s+$/,
+      /\bdoes\s+not\s+(?:include|show|use)\s+$/,
+    ],
+    after: [/^\s+(?:excluded|removed|omitted)\b/],
+  },
+];
+
+function filterOperatorForContext(
+  normalizedPrompt: string,
+  start: number,
+  end: number,
+): ExactFilterPredicate["op"] {
+  const before = normalizedPrompt.slice(Math.max(0, start - 96), start);
+  const after = normalizedPrompt.slice(
+    end,
+    Math.min(normalizedPrompt.length, end + 96),
+  );
+
+  for (const rule of FILTER_OPERATOR_RULES) {
+    const matchesBefore = rule.before?.some((pattern) => pattern.test(before));
+    const matchesAfter = rule.after?.some((pattern) => pattern.test(after));
+
+    if (matchesBefore || matchesAfter) return rule.op;
+  }
+
+  return "=";
+}
+
+function filterOperatorScoreBoost(op: FilterSpec["op"]) {
+  return FILTER_OPERATOR_RULES.find((rule) => rule.op === op)?.scoreBoost ?? 0;
+}
+
 function rolePrior(field: SchemaField, role: FieldRole) {
   if (role === "metric") return field.kind === "number" ? 0.15 : -0.2;
   if (role === "dimension")
@@ -226,17 +293,66 @@ function fieldNameMentionScore(prompt: string, field: SchemaField) {
   return best;
 }
 
+function exactSamplePredicateMatches(
+  prompt: string,
+  field: SchemaField,
+): ExactFilterPredicate[] {
+  const p = normalizeText(prompt);
+  if (!p) return [];
+
+  const values = representativeSampleValues(field, Infinity)
+    .map((rawValue) => {
+      return { rawValue, value: normalizeText(String(rawValue)) };
+    })
+    .filter(({ value }) => value.length > 0)
+    .sort((a, b) => b.value.length - a.value.length);
+
+  const matches: ExactFilterPredicate[] = [];
+
+  for (const { rawValue, value } of values) {
+    const pattern = new RegExp(`(^|\\s)${escapeRegExp(value)}(?=$|\\s)`, "g");
+    let match: RegExpExecArray | null = pattern.exec(p);
+
+    while (match !== null) {
+      const leadingWhitespaceLength = match[1]?.length ?? 0;
+      const start = match.index + leadingWhitespaceLength;
+      const end = start + value.length;
+      const op = filterOperatorForContext(p, start, end);
+
+      matches.push({
+        op,
+        value: rawValue,
+        score: 1.1 + filterOperatorScoreBoost(op),
+      });
+
+      match = pattern.exec(p);
+    }
+  }
+
+  return dedupeExactFilterPredicates(matches);
+}
+
+function dedupeExactFilterPredicates(
+  predicates: ExactFilterPredicate[],
+): ExactFilterPredicate[] {
+  const seen = new Set<string>();
+  const out: ExactFilterPredicate[] = [];
+
+  for (const predicate of predicates) {
+    const key = `${predicate.op}:${normalizeText(String(predicate.value))}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(predicate);
+  }
+
+  return out.sort((a, b) => b.score - a.score);
+}
+
 function exactSampleMatch(
   prompt: string,
   field: SchemaField,
 ): FilterValue | undefined {
-  const p = normalizeText(prompt);
-  for (const rawValue of representativeSampleValues(field, Infinity)) {
-    const value = normalizeText(String(rawValue));
-    if (!value) continue;
-    if (hasWholePhrase(p, value)) return rawValue;
-  }
-  return undefined;
+  return exactSamplePredicateMatches(prompt, field)[0]?.value;
 }
 
 function buildFieldSemanticText(field: SchemaField, role: FieldRole) {
@@ -406,43 +522,65 @@ async function inferFilters(
   const ranked = await rankFieldsByPrompt(prompt, filterable, "filter");
   const topFields = ranked.slice(0, 8);
 
-  const matches = await Promise.all(
-    topFields.map(async (rankedField) => {
-      const exactMatch = rankedField.matchedSample;
+  const matches = (
+    await Promise.all(
+      topFields.map(async (rankedField) => {
+        const exactPredicates = exactSamplePredicateMatches(
+          prompt,
+          rankedField.field,
+        );
 
-      if (
-        exactMatch !== undefined &&
-        explicitGroupByFieldNames.has(rankedField.field.name)
-      ) {
-        return null;
-      }
+        if (exactPredicates.length) {
+          return exactPredicates
+            .filter((predicate) => {
+              const fieldIsAlreadyGrouped = explicitGroupByFieldNames.has(
+                rankedField.field.name,
+              );
 
-      const semanticMatch =
-        rankedField.matchedSample !== undefined
-          ? { rawValue: rankedField.matchedSample, score: 1.1 }
-          : await inferSemanticSampleMatch(prompt, rankedField.field);
+              return !(fieldIsAlreadyGrouped && predicate.op === "=");
+            })
+            .map((predicate) => {
+              return {
+                score: rankedField.score + predicate.score,
+                filter: {
+                  field: rankedField.field.name,
+                  op: predicate.op,
+                  value: predicate.value,
+                },
+              };
+            });
+        }
 
-      if (!semanticMatch) return null;
+        if (explicitGroupByFieldNames.has(rankedField.field.name)) {
+          return [];
+        }
 
-      const totalScore = rankedField.score + semanticMatch.score;
-      if (totalScore < 1.15) return null;
+        const semanticMatch = await inferSemanticSampleMatch(
+          prompt,
+          rankedField.field,
+        );
 
-      return {
-        score: totalScore,
-        filter: {
-          field: rankedField.field.name,
-          op: "=" as const,
-          value: semanticMatch.rawValue,
-        },
-      };
-    }),
-  );
+        if (!semanticMatch) return [];
+
+        const totalScore = rankedField.score + semanticMatch.score;
+        if (totalScore < 1.15) return [];
+
+        return [
+          {
+            score: totalScore,
+            filter: {
+              field: rankedField.field.name,
+              op: "=" as const,
+              value: semanticMatch.rawValue,
+            },
+          },
+        ];
+      }),
+    )
+  ).flat();
 
   return dedupeFilters(
-    matches
-      .filter((x): x is NonNullable<typeof x> => x !== null)
-      .sort((a, b) => b.score - a.score)
-      .map((x) => x.filter),
+    matches.sort((a, b) => b.score - a.score).map((x) => x.filter),
   ).slice(0, 4);
 }
 
