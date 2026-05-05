@@ -1,5 +1,5 @@
 import type { ColDef } from "ag-grid-community";
-import { Badge, SendHorizontal } from "lucide-react";
+import { AlertCircleIcon, Badge, SendHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useState, ViewTransition } from "react";
 import { useMlOutput } from "@/hooks/useMlOutput";
@@ -10,6 +10,7 @@ import {
 } from "@/lib/datavis/compileDashboard";
 import type { Row } from "@/lib/datavis/types";
 import { Content } from "../Content";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 
@@ -36,17 +37,25 @@ export const Prompt = ({
     columnDefs: ColDef<Row>[],
   ) => void;
 }) => {
-  const { parse, loading } = useMlOutput();
+  const { validate, parse, loading } = useMlOutput();
   const { rowData, columnDefs, schemaSpec } = useSampleData();
 
+  const [isValid, setIsValid] = useState<boolean>(true);
   const [prompt, setPrompt] = useState("");
   const handlePromptChange = (
     event: React.ChangeEvent<HTMLTextAreaElement>,
   ) => {
+    setIsValid(true);
     setPrompt(event.target.value.trim());
   };
   const handlePromptSubmit = async () => {
     if (!prompt) return;
+
+    const didValidationPass = await validate(prompt);
+    if (!didValidationPass) {
+      setIsValid(false);
+      return;
+    }
 
     const spec = await parse(prompt, schemaSpec);
     const dashboardConfig = compileDashboardConfig(spec);
@@ -56,6 +65,16 @@ export const Prompt = ({
 
   return (
     <Content description={<PromptDescription />}>
+      {!isValid && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircleIcon className="me-2" />
+          <AlertTitle>Invalid prompt</AlertTitle>
+          <AlertDescription>
+            Sorry, I couldn't understand that. Please try rephrasing your
+            prompt.
+          </AlertDescription>
+        </Alert>
+      )}
       <ViewTransition exit="prompt-fade-out" default="none">
         <div className="relative">
           <Textarea

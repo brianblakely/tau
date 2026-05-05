@@ -32,6 +32,35 @@ export function useMlOutput() {
     };
   }, []);
 
+  const validate = async (prompt: string): Promise<boolean> => {
+    const worker = workerRef.current;
+    if (!worker) throw new Error("Worker not initialized");
+
+    setLoading(true);
+
+    return new Promise((resolve, reject) => {
+      const onMessage = (event: MessageEvent) => {
+        const { type, payload } = event.data ?? {};
+        if (type === "validation") {
+          cleanup();
+          setLoading(false);
+          resolve(payload as boolean);
+        } else if (type === "error") {
+          cleanup();
+          setLoading(false);
+          reject(new Error(String(payload)));
+        }
+      };
+
+      const cleanup = () => {
+        worker.removeEventListener("message", onMessage);
+      };
+
+      worker.addEventListener("message", onMessage);
+      worker.postMessage({ type: "validate", prompt });
+    });
+  };
+
   async function parse(
     prompt: string,
     schema: SchemaField[],
@@ -64,5 +93,5 @@ export function useMlOutput() {
     });
   }
 
-  return { ready, loading, parse };
+  return { ready, loading, validate, parse };
 }

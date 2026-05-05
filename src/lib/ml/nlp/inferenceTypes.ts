@@ -2,6 +2,11 @@ import type { FilterSpec, SchemaField } from "@/lib/ml/types";
 
 export type FilterValue = FilterSpec["value"];
 
+export type ValidateRequest = {
+  type: "validate";
+  prompt: string;
+};
+
 export type ParseRequest = {
   type: "parse";
   prompt: string;
@@ -12,7 +17,7 @@ export type InitRequest = {
   type: "init";
 };
 
-export type WorkerRequest = ParseRequest | InitRequest;
+export type WorkerRequest = ValidateRequest | ParseRequest | InitRequest;
 
 export type InferenceBackend = "webgpu" | "wasm";
 export type FieldRole = "metric" | "dimension" | "filter";

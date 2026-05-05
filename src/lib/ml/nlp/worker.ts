@@ -1,6 +1,7 @@
-import type { WorkerRequest } from "@/lib/ml/nlp/inferenceTypes";
-import { parsePrompt } from "@/lib/ml/nlp/parsePrompt";
-import { InferenceEngine } from "@/lib/ml/nlp/runtime";
+import type { WorkerRequest } from "./inferenceTypes";
+import { parsePrompt } from "./parsePrompt";
+import { InferenceEngine } from "./runtime";
+import { isPromptValid } from "./validation";
 
 self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
   try {
@@ -14,6 +15,12 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
         ),
       ]);
       self.postMessage({ type: "ready" });
+      return;
+    }
+
+    if (event.data.type === "validate") {
+      const isValid = await isPromptValid(event.data.prompt);
+      self.postMessage({ type: "validation", payload: isValid });
       return;
     }
 
