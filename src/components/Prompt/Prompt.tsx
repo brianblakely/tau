@@ -80,7 +80,7 @@ export const Prompt = ({
         <div className="relative">
           <Textarea
             autoFocus
-            className="pb-16 resize-none"
+            className="pb-17 resize-none"
             onChange={handlePromptChange}
             ref={promptRef}
             value={prompt}

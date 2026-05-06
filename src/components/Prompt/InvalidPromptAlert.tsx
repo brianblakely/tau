@@ -10,7 +10,10 @@ export const InvalidPromptAlert = ({
   className?: string;
   onClear: () => void;
 }) => (
-  <Alert variant="destructive" className={cn("fade-wipe", className)}>
+  <Alert
+    variant="destructive"
+    className={cn("fade-wipe border-transparent bg-clip-padding", className)}
+  >
     <AlertCircleIcon className="me-2" />
     <AlertTitle>Invalid prompt</AlertTitle>
     <AlertDescription>Sorry, I couldn't understand that.</AlertDescription>
