@@ -5,6 +5,51 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@utility fade-wipe {
+    --fade-wipe-edge: 24px;
+    --fade-wipe-ease: linear(
+        0,
+        0.007 1.1%,
+        0.029 2.3%,
+        0.118 5.2%,
+        0.26 9.2%,
+        0.45 14.6%,
+        0.63 21%,
+        0.77 29%,
+        0.87 38.5%,
+        0.94 51.5%,
+        0.985 68%,
+        1
+    );
+
+    animation: fade-wipe 360ms var(--fade-wipe-ease) both;
+    mask-image: linear-gradient(
+        to right,
+        black calc(100% - var(--fade-wipe-edge)),
+        transparent
+    );
+    mask-repeat: no-repeat;
+    mask-size: 0% 100%;
+    -webkit-mask-image: linear-gradient(
+        to right,
+        black calc(100% - var(--fade-wipe-edge)),
+        transparent
+    );
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: 0% 100%;
+}
+
+@keyframes fade-wipe {
+    from {
+        mask-size: 0% 100%;
+        -webkit-mask-size: 0% 100%;
+    }
+    to {
+        mask-size: calc(100% + var(--fade-wipe-edge)) 100%;
+        -webkit-mask-size: calc(100% + var(--fade-wipe-edge)) 100%;
+    }
+}
+
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);
