@@ -55,6 +55,10 @@ export const Prompt = ({
     promptRef.current?.focus();
   };
   const handlePromptSubmit = async () => {
+    if (loading) {
+      return;
+    }
+
     const trimmedPrompt = prompt.trim();
 
     if (!trimmedPrompt) {
@@ -73,6 +77,14 @@ export const Prompt = ({
 
     onSubmit(trimmedPrompt, dashboardConfig, rowData, columnDefs);
   };
+  const handlePromptKeyDown = async (
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+  ) => {
+    if (event.ctrlKey && event.key === "Enter") {
+      event.preventDefault();
+      await handlePromptSubmit();
+    }
+  };
 
   return (
     <Content description={<PromptDescription />}>
@@ -82,6 +94,7 @@ export const Prompt = ({
             autoFocus
             className="pb-17 resize-none"
             onChange={handlePromptChange}
+            onKeyDown={handlePromptKeyDown}
             ref={promptRef}
             value={prompt}
           />
