@@ -18,12 +18,7 @@ export const InvalidPromptAlert = ({
     <AlertTitle>Invalid prompt</AlertTitle>
     <AlertDescription>Sorry, I couldn't understand that.</AlertDescription>
     <AlertAction>
-      <Button
-        className="cursor-pointer"
-        type="button"
-        size="sm"
-        onClick={onClear}
-      >
+      <Button className="cursor-pointer" size="sm" onClick={onClear}>
         <EraserIcon />
         Clear
       </Button>

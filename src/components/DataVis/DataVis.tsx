@@ -2,10 +2,12 @@
 
 import { AgChartsEnterpriseModule } from "ag-charts-enterprise";
 import type {
+  ChartCreatedEvent,
   ChartType,
   ColDef,
   ColumnState,
   CreateRangeChartParams,
+  FirstDataRenderedEvent,
   GridApi,
   GridReadyEvent,
 } from "ag-grid-community";
@@ -48,6 +50,7 @@ export type DataVisProps = {
   columnDefs: ColDef<Row>[];
   spec: DashboardConfig;
   columnMeta: ColumnMeta;
+  onDisplayed?: () => void;
 };
 
 function isChartVisType(
@@ -232,6 +235,7 @@ export function DataVis({
   columnDefs,
   spec,
   columnMeta,
+  onDisplayed,
 }: DataVisProps) {
   const apiRef = useRef<GridApi | null>(null);
   const chartRef = useRef<{ destroyChart(): void } | null>(null);
@@ -265,9 +269,33 @@ export function DataVis({
     syncSpecIntoGrid();
   }
 
+  const onFirstDataRendered = useCallback(
+    (_event: FirstDataRenderedEvent<Row>) => {
+      if (spec.visType === "table") {
+        onDisplayed?.();
+      }
+    },
+    [onDisplayed, spec.visType],
+  );
+
+  const onChartCreated = useCallback(
+    (_event: ChartCreatedEvent<Row>) => {
+      if (isChartVisType(spec.visType)) {
+        onDisplayed?.();
+      }
+    },
+    [onDisplayed, spec.visType],
+  );
+
   useEffect(() => {
     syncSpecIntoGrid();
   }, [syncSpecIntoGrid]);
+
+  useEffect(() => {
+    return () => {
+      chartRef.current?.destroyChart();
+    };
+  }, []);
 
   return (
     <AgGridProvider modules={modules}>
@@ -285,6 +313,8 @@ export function DataVis({
           suppressColumnVirtualisation={true}
           autoSizeStrategy={autoSizeStrategy}
           onGridReady={onGridReady}
+          onFirstDataRendered={onFirstDataRendered}
+          onChartCreated={onChartCreated}
           enableCharts={true}
           chartThemes={["ag-vivid-dark"]}
         />

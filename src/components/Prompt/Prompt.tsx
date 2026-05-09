@@ -1,7 +1,6 @@
 import type { ColDef } from "ag-grid-community";
 import { Badge, SendHorizontal } from "lucide-react";
-import Link from "next/link";
-import { useRef, useState, ViewTransition } from "react";
+import { useRef, useState } from "react";
 import { useMlOutput } from "@/hooks/useMlOutput";
 import { useSampleData } from "@/hooks/useSampleData";
 import {
@@ -9,27 +8,16 @@ import {
   type DashboardConfig,
 } from "@/lib/datavis/compileDashboard";
 import type { Row } from "@/lib/datavis/types";
-import { Content } from "../Content";
+import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { InvalidPromptAlert } from "./InvalidPromptAlert";
 
-const PromptDescription = () => (
-  <>
-    Enter a prompt to visualize our sample (retail sales) dataset.{" "}
-    <Link
-      href="/data"
-      target="_blank"
-      className="inline-block underline underline-offset-3 hover:text-foreground"
-    >
-      Explore the dataset.
-    </Link>
-  </>
-);
-
 export const Prompt = ({
+  className,
   onSubmit,
 }: {
+  className?: string;
   onSubmit: (
     prompt: string,
     config: DashboardConfig,
@@ -87,39 +75,35 @@ export const Prompt = ({
   };
 
   return (
-    <Content description={<PromptDescription />}>
-      <ViewTransition exit="prompt-fade-out" default="none">
-        <div className="relative">
-          <Textarea
-            autoFocus
-            className="pb-17 resize-none"
-            onChange={handlePromptChange}
-            onKeyDown={handlePromptKeyDown}
-            ref={promptRef}
-            value={prompt}
-          />
-          <Button
-            type="submit"
-            size="icon"
-            className="absolute right-2 bottom-2 h-10 w-10 rounded-full cursor-pointer"
-            aria-label="Send message"
-            onClick={handlePromptSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <Badge className="h-4 w-4 animate-spin" />
-            ) : (
-              <SendHorizontal className="h-4 w-4" />
-            )}
-          </Button>
-          {!isValid && (
-            <InvalidPromptAlert
-              className="absolute! left-0 bottom-0"
-              onClear={handlePromptClear}
-            />
-          )}
-        </div>
-      </ViewTransition>
-    </Content>
+    <div className={cn("relative", className)}>
+      <Textarea
+        autoFocus
+        className="pb-17 resize-none"
+        onChange={handlePromptChange}
+        onKeyDown={handlePromptKeyDown}
+        ref={promptRef}
+        value={prompt}
+      />
+      <Button
+        type="submit"
+        size="icon"
+        className="absolute right-2 bottom-2 h-10 w-10 rounded-full cursor-pointer disabled:opacity-100"
+        aria-label="Send message"
+        onClick={handlePromptSubmit}
+        disabled={loading}
+      >
+        {loading ? (
+          <Badge className="h-4 w-4 animate-spin" />
+        ) : (
+          <SendHorizontal className="h-4 w-4" />
+        )}
+      </Button>
+      {!isValid && (
+        <InvalidPromptAlert
+          className="absolute! left-0 bottom-0"
+          onClear={handlePromptClear}
+        />
+      )}
+    </div>
   );
 };

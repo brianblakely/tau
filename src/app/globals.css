@@ -6,7 +6,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @utility fade-wipe {
-    --fade-wipe-edge: 24px;
+    --fade-wipe-edge: 5px;
+    --fade-wipe-direction: to right;
+    --fade-wipe-from-size: 0% 100%;
+    --fade-wipe-to-size: calc(100% + var(--fade-wipe-edge)) 100%;
     --fade-wipe-ease: linear(
         0,
         0.007 1.1%,
@@ -24,29 +27,45 @@
 
     animation: fade-wipe 360ms var(--fade-wipe-ease) both;
     mask-image: linear-gradient(
-        to right,
+        var(--fade-wipe-direction),
         black calc(100% - var(--fade-wipe-edge)),
         transparent
     );
     mask-repeat: no-repeat;
-    mask-size: 0% 100%;
+    mask-size: var(--fade-wipe-from-size);
     -webkit-mask-image: linear-gradient(
-        to right,
+        var(--fade-wipe-direction),
         black calc(100% - var(--fade-wipe-edge)),
         transparent
     );
     -webkit-mask-repeat: no-repeat;
-    -webkit-mask-size: 0% 100%;
+    -webkit-mask-size: var(--fade-wipe-from-size);
+}
+
+@utility fade-wipe-right {
+    --fade-wipe-direction: to right;
+    --fade-wipe-from-size: 0% 100%;
+    --fade-wipe-to-size: calc(100% + var(--fade-wipe-edge)) 100%;
+}
+
+@utility fade-wipe-down {
+    --fade-wipe-direction: to bottom;
+    --fade-wipe-from-size: 100% 0%;
+    --fade-wipe-to-size: 100% calc(100% + var(--fade-wipe-edge));
 }
 
 @keyframes fade-wipe {
     from {
-        mask-size: 0% 100%;
-        -webkit-mask-size: 0% 100%;
+        mask-size: var(--fade-wipe-from-size);
+        -webkit-mask-size: var(--fade-wipe-from-size);
+    }
+    99.9% {
+        mask-size: var(--fade-wipe-to-size);
+        -webkit-mask-size: var(--fade-wipe-to-size);
     }
     to {
-        mask-size: calc(100% + var(--fade-wipe-edge)) 100%;
-        -webkit-mask-size: calc(100% + var(--fade-wipe-edge)) 100%;
+        mask-image: none;
+        -webkit-mask-image: none;
     }
 }
 

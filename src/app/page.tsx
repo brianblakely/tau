@@ -1,11 +1,26 @@
 "use client";
 
 import type { ColDef } from "ag-grid-community";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, ViewTransition } from "react";
+import { Content } from "@/components/Content";
 import { Prompt } from "@/components/Prompt";
 import type { DashboardConfig } from "@/lib/datavis/compileDashboard";
 import type { Row } from "@/lib/datavis/types";
+
+const PromptDescription = () => (
+  <>
+    Enter a prompt to visualize our sample (retail sales) dataset.{" "}
+    <Link
+      href="/data"
+      target="_blank"
+      className="inline-block underline underline-offset-3 hover:text-foreground"
+    >
+      Explore the dataset.
+    </Link>
+  </>
+);
 
 export default function Home() {
   const router = useRouter();
@@ -26,5 +41,11 @@ export default function Home() {
     [router],
   );
 
-  return <Prompt onSubmit={handlePromptSubmit} />;
+  return (
+    <Content description={<PromptDescription />}>
+      <ViewTransition exit="prompt-fade-out" default="none">
+        <Prompt onSubmit={handlePromptSubmit} />
+      </ViewTransition>
+    </Content>
+  );
 }
