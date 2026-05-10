@@ -8,11 +8,15 @@ import { IconLinkedIn } from "./IconLinkedIn";
 export const Header = ({ className }: React.ComponentProps<"header">) => {
   return (
     <header className={cn("flex items-end gap-3 align-bottom", className)}>
-      <Image src={tau} alt="Tau logo" className="mr-4 h-12 w-auto" />
+      <Link href="/" className="inline-block mr-4" aria-label="Tau home">
+        <Image src={tau} alt="Tau logo" className="h-12 w-auto" />
+      </Link>
       <div className="flex items-baseline gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight transition-colors">
-          Tau.
-        </h1>
+        <Link href="/" className="inline-block" aria-label="Tau home">
+          <h1 className="text-3xl font-semibold tracking-tight transition-colors">
+            Tau.
+          </h1>
+        </Link>
         <strong className="flex gap-3 text-[12px] text-muted-foreground font-normal italic">
           Brian Blakely
           <Link
