@@ -6,7 +6,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @utility fade-wipe {
-  --fade-wipe-edge: 24px;
+  --fade-wipe-edge: 15%;
   --fade-wipe-direction: to right;
   --fade-wipe-from-size: 0% 100%;
   --fade-wipe-to-size: calc(100% + var(--fade-wipe-edge)) 100%;
@@ -30,7 +30,7 @@
     1
   );
 
-  animation: fade-wipe 250ms var(--fade-wipe-ease) both;
+  animation: fade-wipe 750ms var(--fade-wipe-ease) both;
   mask-image: var(--fade-wipe-mask-image);
   mask-repeat: no-repeat;
   mask-size: var(--fade-wipe-from-size);
